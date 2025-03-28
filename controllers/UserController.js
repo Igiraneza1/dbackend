@@ -1,6 +1,8 @@
 import User from "../modals/UserModal.js";
 import bcrypt from "bcryptjs";
 import { generateAccessToken } from "../utils/tokenGeneration.js";
+import Sendemail from "../utils/Sendemail.js";
+
 
 export const Register = async (req, res) => {
     try {
@@ -13,7 +15,7 @@ export const Register = async (req, res) => {
         }
 
         // Hash the password
-        const hashedPassword = await bcrypt.hash(userPassword, 10); 
+        const hashedPassword = await bcrypt.hash(userPassword, 10);
 
         // Create a new user instance
         const user = new User({
@@ -21,7 +23,7 @@ export const Register = async (req, res) => {
             userEmail,
             userPassword: hashedPassword,
             userRole,
-            tokens: {} 
+            tokens: {}
         });
 
         // Generate access token
@@ -48,44 +50,62 @@ export const Register = async (req, res) => {
     }
 };
 
-export const Login = async (req, res) => {
+
+export const createContact = async (req, res) => {
     try {
-        const { userEmail, userPassword } = req.body;
+        const { names, email, message } = req.body;
 
-        // Find user by email
-        const user = await User.findOne({ userEmail });
-        console.log("User found:", user); // Debugging
+        // Create a new contact entry
+        const newContact = new Contact({ names, email, message });
+        const savedContact = await newContact.save();
 
-        if (!user) {
-            return res.status(404).json({ message: "User not found" });
+        // Create HTML content for the email
+        const htmlContent = `
+            <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+                <h2 style="color: #ea7b30;">Thank You for Contacting Us!</h2>
+                <p>Hi ${names},</p>
+                <p>Thank you for making registration. We will notify you about upcoming events.</p>
+                <p>We for,<br>Blood Donation Rwanda</p>
+            </div>
+        `;
+
+        // Send the email
+        const emailSent = await Sendemail(email, subject, htmlContent);
+        if (emailSent) {
+            console.log("Confirmation email sent to:", email);
         }
 
-        // Compare passwords
-        const isMatch = await bcrypt.compare(userPassword, user.userPassword);
-        if (!isMatch) {
-            return res.status(401).json({ message: "Invalid credentials" });
-        }
-
-        // Generate new access token
-        const accessToken = generateAccessToken(user);
-        user.tokens.accessToken = accessToken;
-
-        // Save the updated user token
-        await user.save();
-
-        res.json({
-            message: "Login successful",
-            user: {
-                id: user._id,
-                userName: user.userName,
-                userEmail: user.userEmail,
-                userRole: user.userRole,
-                tokens: {
-                    accessToken: user.tokens.accessToken,
-                },
-            },
-        });
+        res.status(201).json(savedContact);
     } catch (error) {
-        res.status(500).json({ message: "Server error", error: error.message });
+        console.error("Error creating contact:", error);
+        res.status(500).json({ error: "Failed to create contact" });
     }
 };
+
+
+export const sendEmail = async (to, subject, htmlContent) => {
+    try {
+        const transporter = nodemailer.createTransport({
+            service: "gmail",
+            auth: {
+                user: process.env.EMAIL_USER, // Use environment variables
+                pass: process.env.EMAIL_PASS,
+            },
+        });
+
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to,
+            subject,
+            html: htmlContent,
+        };
+
+        const info = await transporter.sendMail(mailOptions);
+        console.log("Email sent:", info.response);
+        return true;
+    } catch (error) {
+        console.error("Error sending email:", error);
+        return false;
+    }
+};
+

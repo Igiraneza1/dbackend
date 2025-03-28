@@ -1,17 +1,16 @@
-import Post from "../models/PostModal.js"; 
+import Post from "../modals/PostModal.js"; 
 
 export const createPost = async (req, res) => {
   try {
-    const { title, content, image } = req.body;
+    const { date, content } = req.body;
 
-    if (!title || !content || !image) {
-      return res.status(400).json({ message: "All fields (title, content, image) are required!" });
+    if (!date || !content) {
+      return res.status(400).json({ message: "All fields (date, content) are required!" });
     }
 
     const newPost = new Post({
-      title,
-      content,
-      image, 
+      date,
+      content, 
     });
 
     await newPost.save();
